@@ -1,0 +1,49 @@
+version: "3.4"
+
+services:
+  postgres:
+    hostname: postgres
+    image: postgres:15-alpine
+    restart: always
+    volumes:
+      - dendrite_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: itsasecret
+      POSTGRES_USER: dendrite
+      POSTGRES_DATABASE: dendrite
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dendrite"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  monolith:
+    hostname: monolith
+    image: ghcr.io/element-hq/dendrite-monolith:latest
+    ports:
+      # Exposed to localhost only so Synology's reverse proxy can reach it.
+      # Binding to 127.0.0.1 prevents direct external access.
+      - "127.0.0.1:8008:8008"
+    volumes:
+      - ./config:/etc/dendrite
+      - dendrite_media:/var/dendrite/media
+      - dendrite_jetstream:/var/dendrite/jetstream
+      - dendrite_search_index:/var/dendrite/searchindex
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  dendrite_postgres_data:
+  dendrite_media:
+  dendrite_jetstream:
+  dendrite_search_index:
